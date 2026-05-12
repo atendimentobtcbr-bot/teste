@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gerar link</title>
+  <style>
+    body {
+      font-family: Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-size: 16px;
+      background:#fff;
+      color:#111;
+    }
+    .wrap { max-width: 900px; margin: 40px auto; padding: 0 18px; }
+    h1 { font-size: 30px; margin: 0 0 16px; }
+    label { display:block; font-weight: 700; margin: 16px 0 8px; }
+
+    textarea, input {
+      width:100%;
+      box-sizing:border-box;
+      padding: 12px;
+      border:1px solid #cfcfd8;
+      border-radius: 8px;
+      font-size: 16px;
+      font-family: Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+    textarea#pix { min-height: 60px; resize: vertical; }
+
+    .row { display:flex; gap:12px; align-items:center; margin-top: 14px; flex-wrap:wrap; }
+
+    /* Seletor de encurtador */
+    .providers { display:flex; gap:8px; flex-wrap:wrap; }
+    .providers input { display:none; }
+    .providers label {
+      display: inline-block;
+      margin: 0;
+      padding: 10px 18px;
+      border: 1px solid #cfcfd8;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      background:#fff;
+      color:#444;
+      transition: background .15s, border-color .15s, color .15s;
+      user-select: none;
+    }
+    .providers label:hover { background:#f4f4f6; }
+    .providers input:checked + label {
+      background:#111;
+      color:#fff;
+      border-color:#111;
+    }
+
+    button {
+      padding: 10px 14px;
+      border-radius: 8px;
+      border:1px solid #111;
+      background:#fff;
+      cursor:pointer;
+      font-weight:700;
+      font-family: Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-size: 16px;
+    }
+    button.primary { background:#111; color:#fff; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .out { margin-top: 18px; }
+    .status { margin-top: 10px; font-size: 13px; color:#666; white-space: pre-wrap; }
+    .small { font-size: 12px; color: #666; margin-top: 8px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .pill {
+      display:inline-block; padding: 2px 8px; border-radius: 999px;
+      border: 1px solid #ddd; font-size: 12px; color:#444; background:#fafafa;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Gerar link</h1>
+
+    <label for="pix">Cole abaixo o seu Pix copia e cola:</label>
+    <textarea id="pix" placeholder="Cole aqui o Pix copia e cola..."></textarea>
+
+    <label for="pedido">Número do pedido (opcional):</label>
+    <input id="pedido" type="text" placeholder="Ex: 2107551226..." />
+
+    <label>Escolha o encurtador:</label>
+    <div class="providers" id="providers">
+      <input type="radio" name="provider" id="p-isgd" value="is.gd" checked>
+      <label for="p-isgd">is.gd</label>
+
+      <input type="radio" name="provider" id="p-clcis" value="clc.is">
+      <label for="p-clcis">clc.is</label>
+
+      <input type="radio" name="provider" id="p-spoome" value="spoo.me">
+      <label for="p-spoome">spoo.me</label>
+
+      <input type="radio" name="provider" id="p-urlfy" value="urlfy.org">
+      <label for="p-urlfy">urlfy.org</label>
+    </div>
+
+    <div class="row">
+      <button id="gerar" class="primary">Gerar link encurtado</button>
+      <button id="copiar" disabled>Copiar link</button>
+      <button id="abrir" disabled>Abrir link</button>
+    </div>
+
+    <div class="out">
+      <label for="link">Link gerado:</label>
+      <input id="link" class="mono" readonly placeholder="O link aparecerá aqui..." />
+      <div id="status" class="status"></div>
+
+      <details class="small" style="margin-top:12px;">
+        <summary>Detalhes</summary>
+        <div style="margin-top:10px; display:grid; gap:10px;">
+          <div>
+            <div class="small">URL interna (fallback):</div>
+            <input id="internalUrl" class="mono" readonly placeholder="-" />
+          </div>
+          <div>
+            <div class="small">Destino final (targetUrl):</div>
+            <input id="targetUrl" class="mono" readonly placeholder="-" />
+          </div>
+          <div class="small">
+            Encurtador usado: <span id="providerBadge" class="pill">-</span>
+          </div>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <script>
+    const WORKER_URL = "https://encurtad.pixlink111.workers.dev/api/shorten";
+
+    const pixEl = document.getElementById("pix");
+    const pedidoEl = document.getElementById("pedido");
+    const linkEl = document.getElementById("link");
+
+    const internalUrlEl = document.getElementById("internalUrl");
+    const targetUrlEl = document.getElementById("targetUrl");
+    const providerBadgeEl = document.getElementById("providerBadge");
+
+    const gerarBtn = document.getElementById("gerar");
+    const copiarBtn = document.getElementById("copiar");
+    const abrirBtn = document.getElementById("abrir");
+
+    const statusEl = document.getElementById("status");
+
+    function setStatus(msg) { statusEl.textContent = msg || ""; }
+    function setButtonsEnabled(enabled) {
+      copiarBtn.disabled = !enabled;
+      abrirBtn.disabled = !enabled;
+    }
+    function normalizePix(pix) {
+      return (pix || "").toString().replace(/\r/g, "").trim();
+    }
+    function getSelectedProvider() {
+      const checked = document.querySelector('input[name="provider"]:checked');
+      return checked ? checked.value : "is.gd";
+    }
+    function setDetails({ internalUrl = "", targetUrl = "", provider = "", ok = null, error = "" }) {
+      internalUrlEl.value = internalUrl || "-";
+      targetUrlEl.value = targetUrl || "-";
+      providerBadgeEl.textContent = provider ? provider : "-";
+
+      if (ok === false && error) {
+        setStatus(
+          "Link gerado, mas o encurtador falhou e foi usado o fallback (URL interna).\n" +
+          "Detalhe: " + error
+        );
+      }
+    }
+
+    gerarBtn.addEventListener("click", async () => {
+      const pix = normalizePix(pixEl.value);
+      const pedido = (pedidoEl.value || "").trim();
+      const provider = getSelectedProvider();
+
+      if (!pix) {
+        alert("Cole o Pix copia e cola.");
+        return;
+      }
+
+      setButtonsEnabled(false);
+      linkEl.value = "";
+      setDetails({ internalUrl: "", targetUrl: "", provider: "", ok: null, error: "" });
+      setStatus(`Gerando link via ${provider}...`);
+      gerarBtn.disabled = true;
+
+      let resp;
+      try {
+        resp = await fetch(WORKER_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pix, pedido, provider }),
+        });
+      } catch (e) {
+        gerarBtn.disabled = false;
+        setStatus("");
+        console.error("Erro fetch:", e);
+        alert("Não consegui conectar no Worker: " + (e.message || e));
+        return;
+      }
+
+      let data;
+      try {
+        data = await resp.json();
+      } catch {
+        gerarBtn.disabled = false;
+        setStatus("");
+        alert("O Worker não retornou JSON. Veja o console (F12).");
+        return;
+      }
+
+      gerarBtn.disabled = false;
+
+      if (!resp.ok || !data.ok) {
+        setStatus("");
+        alert("Erro: " + (data.error || `HTTP ${resp.status}`));
+        return;
+      }
+
+      linkEl.value = data.shortUrl || "";
+      setButtonsEnabled(!!linkEl.value);
+
+      setDetails({
+        internalUrl: data.internalUrl || "",
+        targetUrl: data.targetUrl || "",
+        provider: data.shortProvider || "",
+        ok: !!data.shortOk,
+        error: data.shortError || "",
+      });
+
+      if (data.shortOk) {
+        setStatus(`Link encurtado gerado via ${data.shortProvider}.`);
+      } else if (!data.shortError) {
+        setStatus(`Link gerado (fallback). ${provider} não retornou URL curta.`);
+      }
+    });
+
+    copiarBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(linkEl.value);
+        copiarBtn.textContent = "Copiado!";
+        setTimeout(() => (copiarBtn.textContent = "Copiar link"), 1200);
+      } catch {
+        alert("Não consegui copiar automaticamente. Copie manualmente.");
+      }
+    });
+
+    abrirBtn.addEventListener("click", () => {
+      const link = (linkEl.value || "").trim();
+      if (!link) return;
+      window.open(link, "_blank", "noopener,noreferrer");
+    });
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
