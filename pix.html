@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pagar com Pix</title>
+  <style>
+    :root{
+      --bg0:#062015;
+      --bg1:#07301f;
+      --bg2:#094027;
+      --card: rgba(8, 44, 28, .74);
+      --stroke: rgba(134,239,172,.28);
+      --text:#ecfff3;
+      --muted:#c9f7da;
+      --accent:#34d399;
+      --accent2:#86efac;
+      --shadow: 0 18px 60px rgba(0,0,0,.38);
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:var(--text);
+      min-height:100vh;
+      background:
+        radial-gradient(900px 520px at 18% 10%, rgba(134,239,172,.22), transparent 60%),
+        radial-gradient(800px 520px at 85% 30%, rgba(52,211,153,.18), transparent 60%),
+        linear-gradient(160deg, var(--bg0), var(--bg1), var(--bg2));
+    }
+    .wrap{
+      min-height:100vh;
+      display:flex; align-items:center; justify-content:center;
+      padding: 28px 16px 52px;
+    }
+    .card{
+      width: min(560px, 100%);
+      background: var(--card);
+      border: 1px solid var(--stroke);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 18px;
+      backdrop-filter: blur(10px);
+      position: relative;
+    }
+    .card::before{
+      content:"";
+      position:absolute;
+      inset:-1px;
+      border-radius: 18px;
+      pointer-events:none;
+      box-shadow: 0 0 0 1px rgba(134,239,172,.14), 0 0 42px rgba(52,211,153,.10);
+    }
+    header{ display:flex; flex-direction: column; gap: 8px; margin-bottom: 12px; position: relative; z-index: 1; }
+    h1{ margin:0; font-size: 28px; letter-spacing:-.2px; }
+    .sub{ margin: 0; color: var(--muted); font-size: 13px; line-height: 1.35; }
+    .qrBox{
+      margin-top: 14px;
+      display:flex; align-items:center; justify-content:center;
+      padding: 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(134,239,172,.22);
+      position: relative; z-index: 1;
+    }
+    canvas{
+      display:block;
+      background:#fff;
+      border-radius: 12px;
+      padding: 10px;
+      box-shadow: 0 14px 40px rgba(0,0,0,.30);
+      max-width: 100%; height:auto;
+    }
+    .pedido{
+      margin-top: 14px;
+      text-align:center;
+      font-size: 14px;
+      color: var(--muted);
+      position: relative; z-index: 1;
+    }
+    .pedido strong{ color: var(--text); font-weight: 900; }
+    textarea{
+      width:100%; margin-top: 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(134,239,172,.24);
+      background: rgba(5, 28, 18, .55);
+      color: var(--text);
+      padding: 12px;
+      font-size: 12.5px;
+      outline: none;
+      min-height: 110px;
+      resize: vertical;
+      word-break: break-word;
+      position: relative; z-index: 1;
+    }
+    .row{
+      display:flex; gap:10px;
+      align-items:center; justify-content:center;
+      flex-wrap:wrap;
+      margin-top: 12px;
+      position: relative; z-index: 1;
+    }
+    button{
+      appearance:none;
+      border: 1px solid rgba(134,239,172,.26);
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      padding: 12px 14px;
+      border-radius: 14px;
+      cursor:pointer;
+      font-weight: 900;
+      transition: transform .05s ease, filter .2s ease, background .2s ease;
+    }
+    button:hover{ filter: brightness(1.06); background: rgba(255,255,255,.12); }
+    button:active{ transform: translateY(1px); }
+    .primary{
+      background: linear-gradient(135deg, rgba(134,239,172,.95), rgba(52,211,153,.92));
+      color:#052014;
+      border-color: rgba(255,255,255,.16);
+      box-shadow: 0 10px 24px rgba(52,211,153,.18);
+    }
+    .msg{
+      margin-top: 10px;
+      text-align:center;
+      font-size: 13px;
+      color: var(--muted);
+      min-height: 18px;
+      position: relative; z-index: 1;
+    }
+    .msg.ok{ color: #eafff3; }
+    .msg.err{ color: #ffd1da; }
+    .hint{
+      margin-top: 10px;
+      text-align:center;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      opacity: .95;
+      position: relative; z-index: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <main class="card">
+      <header>
+        <h1>Pagar com Pix</h1>
+        <p class="sub">Escaneie o QR Code ou copie o Pix abaixo.</p>
+      </header>
+
+      <section class="qrBox" id="qrBox">
+        <div class="sub">Carregando QR Code…</div>
+      </section>
+
+      <div class="pedido" id="pedidoBox">Pedido: <strong id="pedidoTxt">—</strong></div>
+
+      <div class="row">
+        <button id="copiar" class="primary">Copiar Pix</button>
+      </div>
+
+      <textarea id="pix" readonly placeholder="O Pix aparecerá aqui..."></textarea>
+
+      <div id="msg" class="msg"></div>
+      <div class="hint">No app do banco, confira os dados do recebedor antes de confirmar o pagamento.</div>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <script>
+    const pixEl = document.getElementById("pix");
+    const msgEl = document.getElementById("msg");
+    const qrBox = document.getElementById("qrBox");
+    const copiarBtn = document.getElementById("copiar");
+    const pedidoBox = document.getElementById("pedidoBox");
+    const pedidoTxt = document.getElementById("pedidoTxt");
+
+    function setMsg(text, kind) {
+      msgEl.textContent = text || "";
+      msgEl.className = "msg" + (kind ? (" " + kind) : "");
+    }
+    function getPixFromHash() {
+      const h = location.hash || "";
+      if (!h || h === "#") return "";
+      try { return decodeURIComponent(h.slice(1)).trim(); }
+      catch { return h.slice(1).trim(); }
+    }
+    function getPedidoFromQuery() {
+      const url = new URL(location.href);
+      return (url.searchParams.get("pedido") || "").trim();
+    }
+    async function renderQr(pix) {
+      qrBox.innerHTML = "";
+      if (!pix) {
+        qrBox.innerHTML = '<div class="sub">Pix não encontrado no link.</div>';
+        return;
+      }
+      const canvas = document.createElement("canvas");
+      qrBox.appendChild(canvas);
+      const size = Math.min(340, Math.max(240, Math.floor(window.innerWidth * 0.70)));
+      try {
+        await QRCode.toCanvas(canvas, pix, {
+          width: size,
+          margin: 2,
+          errorCorrectionLevel: "M",
+          color: { dark: "#07301f", light: "#ffffff" },
+        });
+      } catch {
+        qrBox.innerHTML = '<div class="sub">Não consegui gerar o QR Code.</div>';
+      }
+    }
+    async function copyPix() {
+      const pix = (pixEl.value || "").trim();
+      if (!pix) { setMsg("Nada para copiar.", "err"); return; }
+      try {
+        await navigator.clipboard.writeText(pix);
+        setMsg("Pix copiado. Agora cole no app do banco.", "ok");
+      } catch {
+        pixEl.focus();
+        pixEl.select();
+        setMsg("Não consegui copiar automaticamente. Selecione e copie manualmente.", "err");
+      }
+    }
+
+    // init
+    const pedido = getPedidoFromQuery();
+    if (!pedido) { pedidoBox.style.display = "none"; }
+    else { pedidoTxt.textContent = pedido; pedidoBox.style.display = ""; }
+
+    const pix = getPixFromHash();
+    pixEl.value = pix;
+    renderQr(pix);
+    copiarBtn.addEventListener("click", copyPix);
+
+    let t;
+    window.addEventListener("resize", () => {
+      clearTimeout(t);
+      t = setTimeout(() => renderQr(getPixFromHash()), 200);
+    });
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
