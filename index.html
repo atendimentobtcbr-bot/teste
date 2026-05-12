@@ -164,7 +164,9 @@
   </div>
 
   <script>
-    const WORKER_URL = "https://teste.atendimentobtcbr.workers.dev/api/shorten";
+    const WORKER_BASE = "https://teste.atendimentobtcbr.workers.dev";
+    const WORKER_URL = WORKER_BASE + "/api/shorten";
+    const RESOLVE_URL = WORKER_BASE + "/api/resolve";
 
     const pixEl = document.getElementById("pix");
     const pedidoEl = document.getElementById("pedido");
@@ -207,6 +209,30 @@
       }
       return null;
     }
+    function parseDynamicUrl(pix) {
+      if (!pix) return null;
+      let i = 0;
+      const max = pix.length;
+      while (i + 4 <= max) {
+        const tag = pix.substring(i, i + 2);
+        const len = parseInt(pix.substring(i + 2, i + 4), 10);
+        if (!Number.isFinite(len) || i + 4 + len > max) return null;
+        const val = pix.substring(i + 4, i + 4 + len);
+        if (tag === "26") {
+          let j = 0;
+          while (j + 4 <= val.length) {
+            const sTag = val.substring(j, j + 2);
+            const sLen = parseInt(val.substring(j + 2, j + 4), 10);
+            if (!Number.isFinite(sLen) || j + 4 + sLen > val.length) break;
+            const sVal = val.substring(j + 4, j + 4 + sLen);
+            if (sTag === "25" && sVal && /\./.test(sVal)) return sVal;
+            j += 4 + sLen;
+          }
+        }
+        i += 4 + len;
+      }
+      return null;
+    }
     function formatBRL(n) {
       try {
         return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
@@ -214,22 +240,53 @@
         return "R$ " + n.toFixed(2).replace(".", ",");
       }
     }
-    function updateValorPreview() {
+
+    let valorRequestId = 0;
+    function showValor(text, kind) {
+      valorPreviewTxt.textContent = text;
+      valorPreviewEl.classList.toggle("empty", kind === "empty");
+      valorPreviewEl.style.display = "";
+    }
+    async function updateValorPreview() {
       const pix = normalizePix(pixEl.value);
+      const myId = ++valorRequestId;
+
       if (!pix) {
         valorPreviewEl.style.display = "none";
         valorPreviewEl.classList.remove("empty");
         return;
       }
+
       const valor = parseEmvAmount(pix);
       if (valor !== null && valor > 0) {
-        valorPreviewEl.classList.remove("empty");
-        valorPreviewTxt.textContent = formatBRL(valor);
-      } else {
-        valorPreviewEl.classList.add("empty");
-        valorPreviewTxt.textContent = "Pix sem valor fixo (o cliente escolhe)";
+        showValor(formatBRL(valor), "ok");
+        return;
       }
-      valorPreviewEl.style.display = "";
+
+      const dynUrl = parseDynamicUrl(pix);
+      if (!dynUrl) {
+        showValor("Pix sem valor fixo (o cliente escolhe)", "empty");
+        return;
+      }
+
+      showValor("Buscando valor...", "empty");
+      try {
+        const resp = await fetch(RESOLVE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: dynUrl }),
+        });
+        const data = await resp.json();
+        if (myId !== valorRequestId) return;
+        if (data?.ok && Number.isFinite(data.amount) && data.amount > 0) {
+          showValor(formatBRL(data.amount), "ok");
+        } else {
+          showValor("Pix dinâmico (valor não disponível)", "empty");
+        }
+      } catch {
+        if (myId !== valorRequestId) return;
+        showValor("Pix dinâmico (não consegui consultar)", "empty");
+      }
     }
     function getSelectedProvider() {
       const checked = document.querySelector('input[name="provider"]:checked');

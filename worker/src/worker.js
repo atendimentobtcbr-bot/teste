@@ -43,6 +43,9 @@ export default {
       if (url.pathname === "/api/shorten") {
         return await handleShorten(request, env, url, corsOrigin);
       }
+      if (url.pathname === "/api/resolve") {
+        return await handleResolve(request, corsOrigin);
+      }
       if (request.method === "GET") {
         return await handleRedirect(url, env);
       }
@@ -108,6 +111,85 @@ async function handleShorten(request, env, url, corsOrigin) {
     200,
     corsOrigin
   );
+}
+
+async function handleResolve(request, corsOrigin) {
+  if (request.method !== "POST") {
+    return json({ ok: false, error: "Use POST" }, 405, corsOrigin);
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ ok: false, error: "JSON inválido" }, 400, corsOrigin);
+  }
+
+  const rawUrl = String(body?.url || "").trim();
+  if (!rawUrl) {
+    return json({ ok: false, error: "Campo 'url' é obrigatório" }, 400, corsOrigin);
+  }
+
+  let target = rawUrl;
+  if (!/^https?:\/\//i.test(target)) target = "https://" + target;
+  if (!/^https:\/\//i.test(target)) {
+    return json({ ok: false, error: "URL precisa ser HTTPS" }, 400, corsOrigin);
+  }
+
+  try {
+    const resp = await fetchWithTimeout(target, {
+      headers: {
+        "User-Agent": REAL_UA,
+        "Accept": "application/jose, application/json, */*",
+      },
+    });
+
+    if (!resp.ok) {
+      return json({ ok: false, error: `PSP HTTP ${resp.status}` }, 200, corsOrigin);
+    }
+
+    const text = (await resp.text()).trim();
+    let payload = null;
+
+    const parts = text.split(".");
+    if (parts.length === 3) {
+      try {
+        const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+        const pad = "=".repeat((4 - (b64.length % 4)) % 4);
+        const decoded = atob(b64 + pad);
+        payload = JSON.parse(decoded);
+      } catch {}
+    }
+    if (!payload) {
+      try { payload = JSON.parse(text); } catch {}
+    }
+    if (!payload) {
+      return json({ ok: false, error: "Resposta do PSP não reconhecida" }, 200, corsOrigin);
+    }
+
+    const amountStr =
+      payload?.valor?.original ??
+      payload?.valor?.final ??
+      payload?.amount ??
+      payload?.transactionAmount;
+
+    const amount = parseFloat(amountStr);
+    if (!Number.isFinite(amount)) {
+      return json({ ok: false, error: "Valor não encontrado no payload do PSP" }, 200, corsOrigin);
+    }
+
+    return json(
+      {
+        ok: true,
+        amount,
+        merchantName: payload?.devedor?.nome || payload?.merchantName || "",
+      },
+      200,
+      corsOrigin
+    );
+  } catch (err) {
+    return json({ ok: false, error: "Erro ao consultar PSP: " + err.message }, 200, corsOrigin);
+  }
 }
 
 async function handleRedirect(url, env) {

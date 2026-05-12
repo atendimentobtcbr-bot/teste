@@ -190,6 +190,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
   <script>
+    const RESOLVE_URL = "https://teste.atendimentobtcbr.workers.dev/api/resolve";
+
     const pixEl = document.getElementById("pix");
     const msgEl = document.getElementById("msg");
     const qrBox = document.getElementById("qrBox");
@@ -225,6 +227,30 @@
         if (tag === "54") {
           const num = parseFloat(val);
           return Number.isFinite(num) ? num : null;
+        }
+        i += 4 + len;
+      }
+      return null;
+    }
+    function parseDynamicUrl(pix) {
+      if (!pix) return null;
+      let i = 0;
+      const max = pix.length;
+      while (i + 4 <= max) {
+        const tag = pix.substring(i, i + 2);
+        const len = parseInt(pix.substring(i + 2, i + 4), 10);
+        if (!Number.isFinite(len) || i + 4 + len > max) return null;
+        const val = pix.substring(i + 4, i + 4 + len);
+        if (tag === "26") {
+          let j = 0;
+          while (j + 4 <= val.length) {
+            const sTag = val.substring(j, j + 2);
+            const sLen = parseInt(val.substring(j + 2, j + 4), 10);
+            if (!Number.isFinite(sLen) || j + 4 + sLen > val.length) break;
+            const sVal = val.substring(j + 4, j + 4 + sLen);
+            if (sTag === "25" && sVal && /\./.test(sVal)) return sVal;
+            j += 4 + sLen;
+          }
         }
         i += 4 + len;
       }
@@ -279,13 +305,37 @@
     pixEl.value = pix;
     renderQr(pix);
 
-    const valor = parseEmvAmount(pix);
-    if (valor !== null && valor > 0) {
-      valorTxt.textContent = formatBRL(valor);
+    async function showValorFromPix() {
+      const valor = parseEmvAmount(pix);
+      if (valor !== null && valor > 0) {
+        valorTxt.textContent = formatBRL(valor);
+        valorBox.style.display = "";
+        return;
+      }
+      const dynUrl = parseDynamicUrl(pix);
+      if (!dynUrl) {
+        valorBox.style.display = "none";
+        return;
+      }
+      valorTxt.textContent = "Buscando...";
       valorBox.style.display = "";
-    } else {
-      valorBox.style.display = "none";
+      try {
+        const resp = await fetch(RESOLVE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: dynUrl }),
+        });
+        const data = await resp.json();
+        if (data?.ok && Number.isFinite(data.amount) && data.amount > 0) {
+          valorTxt.textContent = formatBRL(data.amount);
+        } else {
+          valorBox.style.display = "none";
+        }
+      } catch {
+        valorBox.style.display = "none";
+      }
     }
+    showValorFromPix();
     copiarBtn.addEventListener("click", copyPix);
 
     let t;
