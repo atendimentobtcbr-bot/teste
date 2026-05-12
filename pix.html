@@ -79,6 +79,24 @@
       position: relative; z-index: 1;
     }
     .pedido strong{ color: var(--text); font-weight: 900; }
+    .valor{
+      margin-top: 14px;
+      text-align:center;
+      font-size: 32px;
+      font-weight: 900;
+      color: var(--accent2);
+      letter-spacing: -.5px;
+      position: relative; z-index: 1;
+    }
+    .valor small{
+      display:block;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
     textarea{
       width:100%; margin-top: 12px;
       border-radius: 14px;
@@ -148,6 +166,11 @@
         <p class="sub">Escaneie o QR Code ou copie o Pix abaixo.</p>
       </header>
 
+      <div class="valor" id="valorBox" style="display:none;">
+        <small>Valor</small>
+        <span id="valorTxt">—</span>
+      </div>
+
       <section class="qrBox" id="qrBox">
         <div class="sub">Carregando QR Code…</div>
       </section>
@@ -173,6 +196,8 @@
     const copiarBtn = document.getElementById("copiar");
     const pedidoBox = document.getElementById("pedidoBox");
     const pedidoTxt = document.getElementById("pedidoTxt");
+    const valorBox = document.getElementById("valorBox");
+    const valorTxt = document.getElementById("valorTxt");
 
     function setMsg(text, kind) {
       msgEl.textContent = text || "";
@@ -187,6 +212,30 @@
     function getPedidoFromQuery() {
       const url = new URL(location.href);
       return (url.searchParams.get("pedido") || "").trim();
+    }
+    function parseEmvAmount(pix) {
+      if (!pix) return null;
+      let i = 0;
+      const max = pix.length;
+      while (i + 4 <= max) {
+        const tag = pix.substring(i, i + 2);
+        const len = parseInt(pix.substring(i + 2, i + 4), 10);
+        if (!Number.isFinite(len) || i + 4 + len > max) return null;
+        const val = pix.substring(i + 4, i + 4 + len);
+        if (tag === "54") {
+          const num = parseFloat(val);
+          return Number.isFinite(num) ? num : null;
+        }
+        i += 4 + len;
+      }
+      return null;
+    }
+    function formatBRL(n) {
+      try {
+        return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
+      } catch {
+        return "R$ " + n.toFixed(2).replace(".", ",");
+      }
     }
     async function renderQr(pix) {
       qrBox.innerHTML = "";
@@ -229,6 +278,14 @@
     const pix = getPixFromHash();
     pixEl.value = pix;
     renderQr(pix);
+
+    const valor = parseEmvAmount(pix);
+    if (valor !== null && valor > 0) {
+      valorTxt.textContent = formatBRL(valor);
+      valorBox.style.display = "";
+    } else {
+      valorBox.style.display = "none";
+    }
     copiarBtn.addEventListener("click", copyPix);
 
     let t;

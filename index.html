@@ -73,6 +73,34 @@
       display:inline-block; padding: 2px 8px; border-radius: 999px;
       border: 1px solid #ddd; font-size: 12px; color:#444; background:#fafafa;
     }
+    .valor-preview {
+      margin-top: 10px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      color: #065f46;
+      font-weight: 700;
+      font-size: 18px;
+      display: none;
+    }
+    .valor-preview small {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      color: #047857;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+    .valor-preview.empty {
+      background: #fff7ed;
+      border-color: #fed7aa;
+      color: #9a3412;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .valor-preview.empty small { color: #c2410c; }
   </style>
 </head>
 <body>
@@ -81,6 +109,11 @@
 
     <label for="pix">Cole abaixo o seu Pix copia e cola:</label>
     <textarea id="pix" placeholder="Cole aqui o Pix copia e cola..."></textarea>
+
+    <div id="valorPreview" class="valor-preview">
+      <small>Valor detectado</small>
+      <span id="valorPreviewTxt">—</span>
+    </div>
 
     <label for="pedido">Número do pedido (opcional):</label>
     <input id="pedido" type="text" placeholder="Ex: 2107551226..." />
@@ -136,6 +169,8 @@
     const pixEl = document.getElementById("pix");
     const pedidoEl = document.getElementById("pedido");
     const linkEl = document.getElementById("link");
+    const valorPreviewEl = document.getElementById("valorPreview");
+    const valorPreviewTxt = document.getElementById("valorPreviewTxt");
 
     const internalUrlEl = document.getElementById("internalUrl");
     const targetUrlEl = document.getElementById("targetUrl");
@@ -154,6 +189,47 @@
     }
     function normalizePix(pix) {
       return (pix || "").toString().replace(/\r/g, "").trim();
+    }
+    function parseEmvAmount(pix) {
+      if (!pix) return null;
+      let i = 0;
+      const max = pix.length;
+      while (i + 4 <= max) {
+        const tag = pix.substring(i, i + 2);
+        const len = parseInt(pix.substring(i + 2, i + 4), 10);
+        if (!Number.isFinite(len) || i + 4 + len > max) return null;
+        const val = pix.substring(i + 4, i + 4 + len);
+        if (tag === "54") {
+          const num = parseFloat(val);
+          return Number.isFinite(num) ? num : null;
+        }
+        i += 4 + len;
+      }
+      return null;
+    }
+    function formatBRL(n) {
+      try {
+        return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
+      } catch {
+        return "R$ " + n.toFixed(2).replace(".", ",");
+      }
+    }
+    function updateValorPreview() {
+      const pix = normalizePix(pixEl.value);
+      if (!pix) {
+        valorPreviewEl.style.display = "none";
+        valorPreviewEl.classList.remove("empty");
+        return;
+      }
+      const valor = parseEmvAmount(pix);
+      if (valor !== null && valor > 0) {
+        valorPreviewEl.classList.remove("empty");
+        valorPreviewTxt.textContent = formatBRL(valor);
+      } else {
+        valorPreviewEl.classList.add("empty");
+        valorPreviewTxt.textContent = "Pix sem valor fixo (o cliente escolhe)";
+      }
+      valorPreviewEl.style.display = "";
     }
     function getSelectedProvider() {
       const checked = document.querySelector('input[name="provider"]:checked');
@@ -254,6 +330,9 @@
       if (!link) return;
       window.open(link, "_blank", "noopener,noreferrer");
     });
+
+    pixEl.addEventListener("input", updateValorPreview);
+    updateValorPreview();
   </script>
 </body>
 </html>
