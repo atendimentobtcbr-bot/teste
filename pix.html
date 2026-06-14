@@ -97,6 +97,28 @@
       text-transform: uppercase;
       margin-bottom: 2px;
     }
+    .expired-box{
+      margin-top: 10px;
+      padding: 18px 14px;
+      border-radius: 14px;
+      background: rgba(127, 29, 29, .35);
+      border: 1px solid rgba(252, 165, 165, .35);
+      color: #fecaca;
+      text-align:center;
+      position: relative; z-index: 1;
+    }
+    .expired-box .title{
+      display:block;
+      font-size: 16px;
+      font-weight: 900;
+      color: #fee2e2;
+      margin-bottom: 4px;
+    }
+    .expired-box .when{
+      display:block;
+      font-size: 13px;
+      color: #fca5a5;
+    }
     textarea{
       width:100%; margin-top: 12px;
       border-radius: 14px;
@@ -170,6 +192,7 @@
         <small>Valor</small>
         <span id="valorTxt">—</span>
       </div>
+
 
       <section class="qrBox" id="qrBox">
         <div class="sub">Carregando QR Code…</div>
@@ -305,20 +328,57 @@
     pixEl.value = pix;
     renderQr(pix);
 
+    let expirationTimer = null;
+    let expiredApplied = false;
+    function markExpired(expMs) {
+      if (expiredApplied) return;
+      expiredApplied = true;
+      if (expirationTimer) { clearTimeout(expirationTimer); expirationTimer = null; }
+
+      const when = Number.isFinite(expMs) ? new Date(expMs).toLocaleString("pt-BR") : "";
+      qrBox.innerHTML =
+        '<div class="expired-box">' +
+          '<span class="title">Cobrança expirada</span>' +
+          (when ? '<span class="when">Em ' + when + '</span>' : '') +
+        '</div>';
+
+      const copiar = document.getElementById("copiar");
+      if (copiar && copiar.parentElement) copiar.parentElement.style.display = "none";
+      pixEl.style.display = "none";
+
+      setMsg("Esta cobrança não pode mais ser paga. Solicite um novo Pix ao recebedor.", "err");
+    }
+    function scheduleExpiration(expiresAtIso) {
+      if (expirationTimer) { clearTimeout(expirationTimer); expirationTimer = null; }
+      if (!expiresAtIso) return;
+      const expMs = new Date(expiresAtIso).getTime();
+      if (!Number.isFinite(expMs)) return;
+      const delay = expMs - Date.now();
+      if (delay <= 0) { markExpired(expMs); return; }
+      const MAX_TIMEOUT = 2_147_483_000;
+      expirationTimer = setTimeout(() => markExpired(expMs), Math.min(delay, MAX_TIMEOUT));
+    }
+
     async function showValorFromPix() {
       const valor = parseEmvAmount(pix);
-      if (valor !== null && valor > 0) {
+      const valorEstatico = (valor !== null && valor > 0);
+
+      if (valorEstatico) {
         valorTxt.textContent = formatBRL(valor);
         valorBox.style.display = "";
-        return;
       }
+
       const dynUrl = parseDynamicUrl(pix);
       if (!dynUrl) {
-        valorBox.style.display = "none";
+        if (!valorEstatico) valorBox.style.display = "none";
         return;
       }
-      valorTxt.textContent = "Buscando...";
-      valorBox.style.display = "";
+
+      if (!valorEstatico) {
+        valorTxt.textContent = "Buscando...";
+        valorBox.style.display = "";
+      }
+
       try {
         const resp = await fetch(RESOLVE_URL, {
           method: "POST",
@@ -326,13 +386,18 @@
           body: JSON.stringify({ url: dynUrl }),
         });
         const data = await resp.json();
-        if (data?.ok && Number.isFinite(data.amount) && data.amount > 0) {
-          valorTxt.textContent = formatBRL(data.amount);
-        } else {
+        if (data?.ok) {
+          if (!valorEstatico && Number.isFinite(data.amount) && data.amount > 0) {
+            valorTxt.textContent = formatBRL(data.amount);
+          } else if (!valorEstatico) {
+            valorBox.style.display = "none";
+          }
+          scheduleExpiration(data.expiresAt);
+        } else if (!valorEstatico) {
           valorBox.style.display = "none";
         }
       } catch {
-        valorBox.style.display = "none";
+        if (!valorEstatico) valorBox.style.display = "none";
       }
     }
     showValorFromPix();

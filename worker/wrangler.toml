@@ -2,6 +2,13 @@ name = "teste"
 main = "src/worker.js"
 compatibility_date = "2025-01-01"
 
+[assets]
+directory = "./assets"
+binding = "ASSETS"
+not_found_handling = "none"
+html_handling = "none"
+run_worker_first = true
+
 [[kv_namespaces]]
 binding = "PIX_LINKS"
 id = "1a9d80a33ce145efa2db1978432ea823"

@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gerar link · teste admin</title>
+  <style>
+    body {
+      font-family: Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-size: 16px;
+      background:#fff;
+      color:#111;
+    }
+    .wrap { max-width: 900px; margin: 40px auto; padding: 0 18px; }
+    h1 { font-size: 30px; margin: 0 0 16px; }
+    label { display:block; font-weight: 700; margin: 16px 0 8px; }
+
+    textarea, input {
+      width:100%;
+      box-sizing:border-box;
+      padding: 12px;
+      border:1px solid #cfcfd8;
+      border-radius: 8px;
+      font-size: 16px;
+      font-family: Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+    textarea#pix { min-height: 60px; resize: vertical; }
+
+    .row { display:flex; gap:12px; align-items:center; margin-top: 14px; flex-wrap:wrap; }
+
+    /* Seletor de encurtador */
+    .providers { display:flex; gap:8px; flex-wrap:wrap; }
+    .providers input { display:none; }
+    .providers label {
+      display: inline-block;
+      margin: 0;
+      padding: 10px 18px;
+      border: 1px solid #cfcfd8;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      background:#fff;
+      color:#444;
+      transition: background .15s, border-color .15s, color .15s;
+      user-select: none;
+    }
+    .providers label:hover { background:#f4f4f6; }
+    .providers input:checked + label {
+      background:#111;
+      color:#fff;
+      border-color:#111;
+    }
+
+    button {
+      padding: 10px 14px;
+      border-radius: 8px;
+      border:1px solid #111;
+      background:#fff;
+      cursor:pointer;
+      font-weight:700;
+      font-family: Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-size: 16px;
+    }
+    button.primary { background:#111; color:#fff; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .out { margin-top: 18px; }
+    .status { margin-top: 10px; font-size: 13px; color:#666; white-space: pre-wrap; }
+    .small { font-size: 12px; color: #666; margin-top: 8px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .pill {
+      display:inline-block; padding: 2px 8px; border-radius: 999px;
+      border: 1px solid #ddd; font-size: 12px; color:#444; background:#fafafa;
+    }
+    .valor-preview {
+      margin-top: 10px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      color: #065f46;
+      font-weight: 700;
+      font-size: 18px;
+      display: none;
+    }
+    .valor-preview small {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      color: #047857;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+    .valor-preview.empty {
+      background: #fff7ed;
+      border-color: #fed7aa;
+      color: #9a3412;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .valor-preview.empty small { color: #c2410c; }
+    .expira-preview {
+      margin-top: 8px;
+      padding: 8px 14px;
+      border-radius: 10px;
+      background: #f5f3ff;
+      border: 1px solid #ddd6fe;
+      color: #4c1d95;
+      font-weight: 700;
+      font-size: 14px;
+      display: none;
+    }
+    .expira-preview small {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      color: #6d28d9;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+    .expira-preview.warning {
+      background: #fffbeb;
+      border-color: #fcd34d;
+      color: #92400e;
+    }
+    .expira-preview.warning small { color: #b45309; }
+    .expira-preview.expired {
+      background: #fef2f2;
+      border-color: #fca5a5;
+      color: #991b1b;
+    }
+    .expira-preview.expired small { color: #b91c1c; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Gerar link</h1>
+
+    <label for="pix">Cole abaixo o seu Pix copia e cola:</label>
+    <textarea id="pix" placeholder="Cole aqui o Pix copia e cola..."></textarea>
+
+    <div id="valorPreview" class="valor-preview">
+      <small>Valor detectado</small>
+      <span id="valorPreviewTxt">—</span>
+    </div>
+
+    <div id="expiraPreview" class="expira-preview">
+      <small id="expiraPreviewLabel">Expira em</small>
+      <span id="expiraPreviewTxt">—</span>
+    </div>
+
+    <label for="pedido">Número do pedido (opcional):</label>
+    <input id="pedido" type="text" placeholder="Ex: 2107551226..." />
+
+    <label>Escolha o encurtador:</label>
+    <div class="providers" id="providers">
+      <input type="radio" name="provider" id="p-clcis" value="clc.is" checked>
+      <label for="p-clcis">clc.is</label>
+
+      <input type="radio" name="provider" id="p-spoome" value="spoo.me">
+      <label for="p-spoome">spoo.me</label>
+
+      <input type="radio" name="provider" id="p-urlfy" value="urlfy.org">
+      <label for="p-urlfy">urlfy.org</label>
+
+      <input type="radio" name="provider" id="p-isgd" value="is.gd">
+      <label for="p-isgd">is.gd</label>
+    </div>
+
+    <div class="row">
+      <button id="gerar" class="primary">Gerar link encurtado</button>
+      <button id="copiar" disabled>Copiar link</button>
+      <button id="abrir" disabled>Abrir link</button>
+    </div>
+
+    <div class="out">
+      <label for="link">Link gerado:</label>
+      <input id="link" class="mono" readonly placeholder="O link aparecerá aqui..." />
+      <div id="status" class="status"></div>
+
+      <details class="small" style="margin-top:12px;">
+        <summary>Detalhes</summary>
+        <div style="margin-top:10px; display:grid; gap:10px;">
+          <div>
+            <div class="small">URL interna (fallback):</div>
+            <input id="internalUrl" class="mono" readonly placeholder="-" />
+          </div>
+          <div>
+            <div class="small">Destino final (targetUrl):</div>
+            <input id="targetUrl" class="mono" readonly placeholder="-" />
+          </div>
+          <div class="small">
+            Encurtador usado: <span id="providerBadge" class="pill">-</span>
+          </div>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <script>
+    const WORKER_URL = "/api/shorten";
+    const RESOLVE_URL = "/api/resolve";
+
+    const pixEl = document.getElementById("pix");
+    const pedidoEl = document.getElementById("pedido");
+    const linkEl = document.getElementById("link");
+    const valorPreviewEl = document.getElementById("valorPreview");
+    const valorPreviewTxt = document.getElementById("valorPreviewTxt");
+    const expiraPreviewEl = document.getElementById("expiraPreview");
+    const expiraPreviewLabel = document.getElementById("expiraPreviewLabel");
+    const expiraPreviewTxt = document.getElementById("expiraPreviewTxt");
+
+    const internalUrlEl = document.getElementById("internalUrl");
+    const targetUrlEl = document.getElementById("targetUrl");
+    const providerBadgeEl = document.getElementById("providerBadge");
+
+    const gerarBtn = document.getElementById("gerar");
+    const copiarBtn = document.getElementById("copiar");
+    const abrirBtn = document.getElementById("abrir");
+
+    const statusEl = document.getElementById("status");
+
+    function setStatus(msg) { statusEl.textContent = msg || ""; }
+    function setButtonsEnabled(enabled) {
+      copiarBtn.disabled = !enabled;
+      abrirBtn.disabled = !enabled;
+    }
+    function normalizePix(pix) {
+      return (pix || "").toString().replace(/\r/g, "").trim();
+    }
+    function parseEmvAmount(pix) {
+      if (!pix) return null;
+      let i = 0;
+      const max = pix.length;
+      while (i + 4 <= max) {
+        const tag = pix.substring(i, i + 2);
+        const len = parseInt(pix.substring(i + 2, i + 4), 10);
+        if (!Number.isFinite(len) || i + 4 + len > max) return null;
+        const val = pix.substring(i + 4, i + 4 + len);
+        if (tag === "54") {
+          const num = parseFloat(val);
+          return Number.isFinite(num) ? num : null;
+        }
+        i += 4 + len;
+      }
+      return null;
+    }
+    function parseDynamicUrl(pix) {
+      if (!pix) return null;
+      let i = 0;
+      const max = pix.length;
+      while (i + 4 <= max) {
+        const tag = pix.substring(i, i + 2);
+        const len = parseInt(pix.substring(i + 2, i + 4), 10);
+        if (!Number.isFinite(len) || i + 4 + len > max) return null;
+        const val = pix.substring(i + 4, i + 4 + len);
+        if (tag === "26") {
+          let j = 0;
+          while (j + 4 <= val.length) {
+            const sTag = val.substring(j, j + 2);
+            const sLen = parseInt(val.substring(j + 2, j + 4), 10);
+            if (!Number.isFinite(sLen) || j + 4 + sLen > val.length) break;
+            const sVal = val.substring(j + 4, j + 4 + sLen);
+            if (sTag === "25" && sVal && /\./.test(sVal)) return sVal;
+            j += 4 + sLen;
+          }
+        }
+        i += 4 + len;
+      }
+      return null;
+    }
+    function formatBRL(n) {
+      try {
+        return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
+      } catch {
+        return "R$ " + n.toFixed(2).replace(".", ",");
+      }
+    }
+
+    let valorRequestId = 0;
+    let expiraTimer = null;
+    function showValor(text, kind) {
+      valorPreviewTxt.textContent = text;
+      valorPreviewEl.classList.toggle("empty", kind === "empty");
+      valorPreviewEl.style.display = "";
+    }
+    function hideExpira() {
+      if (expiraTimer) { clearInterval(expiraTimer); expiraTimer = null; }
+      expiraPreviewEl.style.display = "none";
+      expiraPreviewEl.classList.remove("warning", "expired");
+    }
+    function formatRemainingPreview(ms) {
+      const s = Math.max(0, Math.floor(ms / 1000));
+      const d = Math.floor(s / 86400);
+      const h = Math.floor((s % 86400) / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
+      if (d > 0) return `${d}d ${h}h ${m}m`;
+      if (h > 0) return `${h}h ${m}m`;
+      if (m > 0) return `${m}m ${sec}s`;
+      return `${sec}s`;
+    }
+    function showExpira(expiresAtIso) {
+      if (expiraTimer) { clearInterval(expiraTimer); expiraTimer = null; }
+      if (!expiresAtIso) { hideExpira(); return; }
+      const expMs = new Date(expiresAtIso).getTime();
+      if (!Number.isFinite(expMs)) { hideExpira(); return; }
+      expiraPreviewEl.style.display = "block";
+      const tick = () => {
+        const remaining = expMs - Date.now();
+        expiraPreviewEl.classList.remove("warning", "expired");
+        if (remaining <= 0) {
+          expiraPreviewLabel.textContent = "Cobrança expirada em";
+          expiraPreviewTxt.textContent = new Date(expMs).toLocaleString("pt-BR");
+          expiraPreviewEl.classList.add("expired");
+          if (expiraTimer) { clearInterval(expiraTimer); expiraTimer = null; }
+          return;
+        }
+        if (remaining < 5 * 60 * 1000) expiraPreviewEl.classList.add("warning");
+        expiraPreviewLabel.textContent = "Expira em";
+        expiraPreviewTxt.textContent = formatRemainingPreview(remaining);
+      };
+      tick();
+      expiraTimer = setInterval(tick, 1000);
+    }
+    async function updateValorPreview() {
+      const pix = normalizePix(pixEl.value);
+      const myId = ++valorRequestId;
+      hideExpira();
+
+      if (!pix) {
+        valorPreviewEl.style.display = "none";
+        valorPreviewEl.classList.remove("empty");
+        return;
+      }
+
+      const valor = parseEmvAmount(pix);
+      const valorEstatico = (valor !== null && valor > 0);
+      if (valorEstatico) showValor(formatBRL(valor), "ok");
+
+      const dynUrl = parseDynamicUrl(pix);
+      if (!dynUrl) {
+        if (!valorEstatico) showValor("Pix sem valor fixo (o cliente escolhe)", "empty");
+        return;
+      }
+
+      if (!valorEstatico) showValor("Buscando valor...", "empty");
+
+      try {
+        const resp = await fetch(RESOLVE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: dynUrl }),
+        });
+        const data = await resp.json();
+        if (myId !== valorRequestId) return;
+
+        if (data?.ok) {
+          if (!valorEstatico && Number.isFinite(data.amount) && data.amount > 0) {
+            showValor(formatBRL(data.amount), "ok");
+          } else if (!valorEstatico) {
+            showValor("Pix dinâmico (valor não disponível)", "empty");
+          }
+          showExpira(data.expiresAt);
+        } else if (!valorEstatico) {
+          showValor("Pix dinâmico (valor não disponível)", "empty");
+        }
+      } catch {
+        if (myId !== valorRequestId) return;
+        if (!valorEstatico) showValor("Pix dinâmico (não consegui consultar)", "empty");
+      }
+    }
+    function getSelectedProvider() {
+      const checked = document.querySelector('input[name="provider"]:checked');
+      return checked ? checked.value : "clc.is";
+    }
+    function setDetails({ internalUrl = "", targetUrl = "", provider = "", ok = null, error = "" }) {
+      internalUrlEl.value = internalUrl || "-";
+      targetUrlEl.value = targetUrl || "-";
+      providerBadgeEl.textContent = provider ? provider : "-";
+
+      if (ok === false && error) {
+        setStatus(
+          "Link gerado, mas o encurtador falhou e foi usado o fallback (URL interna).\n" +
+          "Detalhe: " + error
+        );
+      }
+    }
+
+    gerarBtn.addEventListener("click", async () => {
+      const pix = normalizePix(pixEl.value);
+      const pedido = (pedidoEl.value || "").trim();
+      const provider = getSelectedProvider();
+
+      if (!pix) {
+        alert("Cole o Pix copia e cola.");
+        return;
+      }
+
+      setButtonsEnabled(false);
+      linkEl.value = "";
+      setDetails({ internalUrl: "", targetUrl: "", provider: "", ok: null, error: "" });
+      setStatus(`Gerando link via ${provider}...`);
+      gerarBtn.disabled = true;
+
+      let resp;
+      try {
+        resp = await fetch(WORKER_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pix, pedido, provider }),
+        });
+      } catch (e) {
+        gerarBtn.disabled = false;
+        setStatus("");
+        console.error("Erro fetch:", e);
+        alert("Não consegui conectar no Worker: " + (e.message || e));
+        return;
+      }
+
+      let data;
+      try {
+        data = await resp.json();
+      } catch {
+        gerarBtn.disabled = false;
+        setStatus("");
+        alert("O Worker não retornou JSON. Veja o console (F12).");
+        return;
+      }
+
+      gerarBtn.disabled = false;
+
+      if (!resp.ok || !data.ok) {
+        setStatus("");
+        alert("Erro: " + (data.error || `HTTP ${resp.status}`));
+        return;
+      }
+
+      linkEl.value = data.shortUrl || "";
+      setButtonsEnabled(!!linkEl.value);
+
+      setDetails({
+        internalUrl: data.internalUrl || "",
+        targetUrl: data.targetUrl || "",
+        provider: data.shortProvider || "",
+        ok: !!data.shortOk,
+        error: data.shortError || "",
+      });
+
+      if (data.shortOk) {
+        setStatus(`Link encurtado gerado via ${data.shortProvider}.`);
+      } else if (!data.shortError) {
+        setStatus(`Link gerado (fallback). ${provider} não retornou URL curta.`);
+      }
+    });
+
+    copiarBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(linkEl.value);
+        copiarBtn.textContent = "Copiado!";
+        setTimeout(() => (copiarBtn.textContent = "Copiar link"), 1200);
+      } catch {
+        alert("Não consegui copiar automaticamente. Copie manualmente.");
+      }
+    });
+
+    abrirBtn.addEventListener("click", () => {
+      const link = (linkEl.value || "").trim();
+      if (!link) return;
+      window.open(link, "_blank", "noopener,noreferrer");
+    });
+
+    pixEl.addEventListener("input", updateValorPreview);
+    updateValorPreview();
+  </script>
+</body>
+</html>
