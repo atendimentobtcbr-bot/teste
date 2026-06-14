@@ -15,10 +15,7 @@ const CODE_LENGTH = 8;
 const SHORTENER_TIMEOUT_MS = 6000;
 const PIX_PAGE = "https://atendimentobtcbr-bot.github.io/teste/pix.html";
 const MAX_PIX_LENGTH = 4000;
-const DEFAULT_KV_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 dias se nao der pra calcular expiresAt
-const KV_TTL_PAD_SECONDS = 24 * 60 * 60;          // folga de 24h apos o expiresAt do Pix
-const KV_TTL_MIN_SECONDS = 60;                    // minimo aceito pelo CF KV
-const PSP_TIMEOUT_MS = 3000;                      // nao atrasa shorten alem disso
+const KV_TTL_SECONDS = 90 * 24 * 60 * 60; // 3 meses fixos: mantem o link/historico mesmo apos o Pix expirar
 
 const VALID_PROVIDERS = new Set(["is.gd", "clc.is", "spoo.me", "urlfy.org"]);
 const DEFAULT_PROVIDER = "clc.is";
@@ -96,7 +93,7 @@ async function handleShorten(request, env, url, corsOrigin) {
   }
 
   const code = await generateUniqueCode(env.PIX_LINKS, CODE_LENGTH);
-  const expirationTtl = await computeKvTtl(pix);
+  const expirationTtl = KV_TTL_SECONDS;
   await env.PIX_LINKS.put(
     code,
     JSON.stringify({ pix, pedido, createdAt: new Date().toISOString() }),
@@ -235,90 +232,8 @@ async function handleRedirect(url, env) {
 }
 
 // ---------- TTL no KV ----------
-// Calcula quanto tempo a entrada deve viver no KV.
-// Se o Pix tem expiresAt extraivel: TTL = (expiresAt - now) + 24h de folga.
-// Caso contrario (Pix estatico, PSP offline, etc): TTL padrao = 30 dias.
-
-async function computeKvTtl(pix) {
-  try {
-    const dynUrl = extractPixDynamicUrl(pix);
-    if (!dynUrl) return DEFAULT_KV_TTL_SECONDS;
-
-    let target = dynUrl;
-    if (!/^https?:\/\//i.test(target)) target = "https://" + target;
-    if (!/^https:\/\//i.test(target)) return DEFAULT_KV_TTL_SECONDS;
-
-    const resp = await fetchWithTimeout(
-      target,
-      {
-        headers: {
-          "User-Agent": REAL_UA,
-          "Accept": "application/jose, application/json, */*",
-        },
-      },
-      PSP_TIMEOUT_MS,
-    );
-    if (!resp.ok) return DEFAULT_KV_TTL_SECONDS;
-
-    const text = (await resp.text()).trim();
-    const payload = parsePspPayload(text);
-    if (!payload) return DEFAULT_KV_TTL_SECONDS;
-
-    const { expiresAt } = parseCalendario(payload?.calendario);
-    if (!expiresAt) return DEFAULT_KV_TTL_SECONDS;
-
-    const expMs = new Date(expiresAt).getTime();
-    if (!Number.isFinite(expMs)) return DEFAULT_KV_TTL_SECONDS;
-
-    const ttl = Math.floor((expMs - Date.now()) / 1000) + KV_TTL_PAD_SECONDS;
-    if (ttl < KV_TTL_MIN_SECONDS) return KV_TTL_MIN_SECONDS;
-    if (ttl > DEFAULT_KV_TTL_SECONDS) return DEFAULT_KV_TTL_SECONDS;
-    return ttl;
-  } catch {
-    return DEFAULT_KV_TTL_SECONDS;
-  }
-}
-
-// Extrai a URL do PSP do campo 26 do BR Code (TLV walker).
-// Retorna null se nao for Pix dinamico ou se nao parsear.
-function extractPixDynamicUrl(pix) {
-  if (!pix) return null;
-  let i = 0;
-  const max = pix.length;
-  while (i + 4 <= max) {
-    const tag = pix.substring(i, i + 2);
-    const len = parseInt(pix.substring(i + 2, i + 4), 10);
-    if (!Number.isFinite(len) || i + 4 + len > max) return null;
-    const val = pix.substring(i + 4, i + 4 + len);
-    if (tag === "26") {
-      let j = 0;
-      while (j + 4 <= val.length) {
-        const sTag = val.substring(j, j + 2);
-        const sLen = parseInt(val.substring(j + 2, j + 4), 10);
-        if (!Number.isFinite(sLen) || j + 4 + sLen > val.length) break;
-        const sVal = val.substring(j + 4, j + 4 + sLen);
-        if (sTag === "25" && sVal && /\./.test(sVal)) return sVal;
-        j += 4 + sLen;
-      }
-    }
-    i += 4 + len;
-  }
-  return null;
-}
-
-// Aceita resposta do PSP como JWS (3 partes b64) ou JSON puro.
-function parsePspPayload(text) {
-  const parts = text.split(".");
-  if (parts.length === 3) {
-    try {
-      const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-      const pad = "=".repeat((4 - (b64.length % 4)) % 4);
-      return JSON.parse(atob(b64 + pad));
-    } catch {}
-  }
-  try { return JSON.parse(text); } catch {}
-  return null;
-}
+// TTL agora e fixo em 3 meses (KV_TTL_SECONDS, ver topo). Mantemos o link
+// resolvendo por 90 dias mesmo depois do Pix expirar, pra preservar historico.
 
 // ---------- Basic Auth ----------
 

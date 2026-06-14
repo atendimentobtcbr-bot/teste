@@ -328,36 +328,8 @@
     pixEl.value = pix;
     renderQr(pix);
 
-    let expirationTimer = null;
-    let expiredApplied = false;
-    function markExpired(expMs) {
-      if (expiredApplied) return;
-      expiredApplied = true;
-      if (expirationTimer) { clearTimeout(expirationTimer); expirationTimer = null; }
-
-      const when = Number.isFinite(expMs) ? new Date(expMs).toLocaleString("pt-BR") : "";
-      qrBox.innerHTML =
-        '<div class="expired-box">' +
-          '<span class="title">Cobrança expirada</span>' +
-          (when ? '<span class="when">Em ' + when + '</span>' : '') +
-        '</div>';
-
-      const copiar = document.getElementById("copiar");
-      if (copiar && copiar.parentElement) copiar.parentElement.style.display = "none";
-      pixEl.style.display = "none";
-
-      setMsg("Esta cobrança não pode mais ser paga. Solicite um novo Pix ao recebedor.", "err");
-    }
-    function scheduleExpiration(expiresAtIso) {
-      if (expirationTimer) { clearTimeout(expirationTimer); expirationTimer = null; }
-      if (!expiresAtIso) return;
-      const expMs = new Date(expiresAtIso).getTime();
-      if (!Number.isFinite(expMs)) return;
-      const delay = expMs - Date.now();
-      if (delay <= 0) { markExpired(expMs); return; }
-      const MAX_TIMEOUT = 2_147_483_000;
-      expirationTimer = setTimeout(() => markExpired(expMs), Math.min(delay, MAX_TIMEOUT));
-    }
+    // Removido: o QR/cópia nao somem mais quando o Pix expira.
+    // O link continua visivel ate o KV expirar (3 meses), pra preservar historico.
 
     async function showValorFromPix() {
       const valor = parseEmvAmount(pix);
@@ -392,7 +364,6 @@
           } else if (!valorEstatico) {
             valorBox.style.display = "none";
           }
-          scheduleExpiration(data.expiresAt);
         } else if (!valorEstatico) {
           valorBox.style.display = "none";
         }
