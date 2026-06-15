@@ -442,6 +442,18 @@
       linkEl.value = data.shortUrl || "";
       setButtonsEnabled(!!linkEl.value);
 
+      // Mesmo clique do "Gerar": ja abre a pagina e copia o link
+      // (equivale a clicar em Abrir + Copiar). Abrimos primeiro pra
+      // reduzir bloqueio de popup; a copia e best-effort.
+      if (linkEl.value) {
+        window.open(linkEl.value, "_blank", "noopener,noreferrer");
+        try {
+          await navigator.clipboard.writeText(linkEl.value);
+          copiarBtn.textContent = "Copiado!";
+          setTimeout(() => (copiarBtn.textContent = "Copiar link"), 1200);
+        } catch {}
+      }
+
       setDetails({
         internalUrl: data.internalUrl || "",
         targetUrl: data.targetUrl || "",
